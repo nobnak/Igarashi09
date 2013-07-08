@@ -36,7 +36,7 @@ def buildA1top(xy, halfedges, edges, heIndices):
         g = np.asarray(g)
         e = xy[v1, :] - xy[v0, :]
         e = np.asarray(( e, (e[1], -e[0]) ))
-        g = np.dot( la.pinv(np.dot(g.T, g)), g.T )
+        g = np.dot( la.inv(np.dot(g.T, g)), g.T )
         h = - np.dot(e, g)
         rows = []
         cols = []
@@ -148,8 +148,8 @@ def test2():
     v1 = spla.spsolve(tA1 * A1, tA1 * b1)
     
     if n == 1:
-        answerG = np.asarray(((0, 0,  0.025,   0.025, 0.025,      0,      0,   0.025),
-                              (0, 0,  0.025,  -0.025,     0, -0.025,  0.025,       0),
+        answerG = np.asarray(((0, 0,  0.025,       0,     0,  0.025,  0.025,   0.025),
+                              (0, 0,      0,  -0.025, 0.025,      0,  0.025,  -0.025),
                               (0, 0, 0.0333,       0,     0,      0, 0.0333,  0.0333),
                               (0, 0,      0, -0.0333,     0,      0, 0.0333, -0.0333),
                               (0, 0, 0.0333,       0,     0,      0, 0.0333,  0.0333),
