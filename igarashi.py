@@ -136,7 +136,7 @@ def test2():
     xy, triangles = planemesh.build(n, scale)
     halfedges = halfedge.build(triangles)
     pins = np.asarray([0, (n+1)**2-1])
-    pinPoses = np.asarray( ((0, 0), (20, 0)) )
+    pinPoses = np.asarray( ((0, 0), (14, 0)) )
     w = 1000.0
     
     edges, heIndices = halfedge.toEdge(halfedges)
