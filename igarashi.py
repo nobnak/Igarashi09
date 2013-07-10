@@ -135,8 +135,8 @@ def test2():
     scale = 10
     xy, triangles = planemesh.build(n, scale)
     halfedges = halfedge.build(triangles)
-    pins = np.asarray([0, (n+1)**2-1])
-    pinPoses = np.asarray( ((0, 0), (14, 0)) )
+    pins = np.asarray([0, n, (n+1)*n, (n+1)**2-1])
+    pinPoses = np.asarray( ((0, 0), (10, 0), (0, 10), (10, 8)) )
     w = 1000.0
     
     edges, heIndices = halfedge.toEdge(halfedges)
@@ -174,6 +174,7 @@ def test2():
     v1 = v1.reshape(-1, 2)
     plt.figure()
     plt.gca().set_aspect('equal')
+    plt.axis([-2, 12, -2, 12])
     plt.triplot(v2[:,0], v2[:,1], triangles)
     plt.show()
     
