@@ -18,10 +18,11 @@ triangles = None
 
 
 def init():
+    global vertices, triangles 
+
     glClearColor(1.0, 1.0, 1.0, 1.0)
     glEnable(GL_DEPTH_TEST)
     
-    global vertices, triangles 
     vertices, triangles = planemesh.build(n, scale)
     half = scale * 0.5
     vertices -= half
@@ -50,6 +51,7 @@ def display():
     glutSwapBuffers()
     
 def reshape(width, height):
+    global winSize, winOrigin
     winSize = (width, height)
     winOrigin = (-width * 0.5, -height * 0.5)
     
