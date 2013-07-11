@@ -60,7 +60,7 @@ def buildA1top(xy, halfedges, edges, heIndices):
 
 
 
-def buildA1bottom(xy, pins, pinPoses, w):
+def buildA1bottom(xy, pins, w):
     Arows = []
     Acols = []
     Adata = []
@@ -110,7 +110,7 @@ def buildA2bottom(pins, w, nVertices):
 
 
 
-def buildB2(xy, edges, pins, pinPoses, w, G, v1):
+def buildB2(xy, edges, pinPoses, w, G, v1):
     T1 = G * v1
     b2 = []
     for row in xrange(0, edges.shape[0]):
@@ -135,17 +135,29 @@ def test2():
     scale = 10
     xy, triangles = planemesh.build(n, scale)
     halfedges = halfedge.build(triangles)
-    pins = np.asarray([0, n, (n+1)*n, (n+1)**2-1])
-    pinPoses = np.asarray( ((0, 0), (10, 0), (0, 10), (10, 8)) )
+    #pins = np.asarray([0, n, (n+1)*n, (n+1)**2-1])
+    #pinPoses = np.asarray( ((0, 0), (10, 0), (0, 10), (10, 8)) )
+    pins = np.asarray([0, n])
+    pinPoses = np.asarray( ((0, 0), (-10, 0)) )
     w = 1000.0
     
     edges, heIndices = halfedge.toEdge(halfedges)
     A1top, G = buildA1top(xy, halfedges, edges, heIndices)
-    A1bottom = buildA1bottom(xy, pins, pinPoses, w)
+    A1bottom = buildA1bottom(xy, pins, w)
     b1 = buildB1(xy, edges, pins, pinPoses, w)
     A1 = sp.vstack((A1top, A1bottom))
     tA1 = A1.transpose()
     v1 = spla.spsolve(tA1 * A1, tA1 * b1)
+    
+    nVertices = xy.shape[0]
+    A2top = buildA2top(edges, nVertices)
+    A2bottom = buildA2bottom(pins, w, nVertices)
+    b2 = buildB2(xy, edges, pinPoses, w, G, v1)
+    A2 = sp.vstack((A2top, A2bottom))
+    tA2 = A2.transpose()
+    v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
+    v2y = spla.spsolve(tA2 * A2, tA2 * b2[:, 1])
+    v2 = np.vstack((v2x, v2y)).T
     
     if n == 1:
         answerG = np.asarray(((0, 0,  0.025,       0,     0,  0.025,  0.025,   0.025),
@@ -160,21 +172,10 @@ def test2():
                               (0, 0,      0,       0,0.0333,      0, 0.0333, -0.0333)
                              ))
         print "Error of G : %e" % la.norm(G - answerG, np.Inf)
-    
-    nVertices = xy.shape[0]
-    A2top = buildA2top(edges, nVertices)
-    A2bottom = buildA2bottom(pins, w, nVertices)
-    b2 = buildB2(xy, edges, pins, pinPoses, w, G, v1)
-    A2 = sp.vstack((A2top, A2bottom))
-    tA2 = A2.transpose()
-    v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
-    v2y = spla.spsolve(tA2 * A2, tA2 * b2[:, 1])
-    v2 = np.vstack((v2x, v2y)).T
 
     v1 = v1.reshape(-1, 2)
     plt.figure()
     plt.gca().set_aspect('equal')
-    plt.axis([-2, 12, -2, 12])
     plt.triplot(v2[:,0], v2[:,1], triangles)
     plt.show()
     

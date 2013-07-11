@@ -4,8 +4,12 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
 import numpy as np
+import scipy.sparse as sp
+import scipy.sparse.linalg as spla
 
 import planemesh
+import halfedge
+import igarashi
 
 winSize = (600, 400)
 winTitle = 'Test OpenGL'
@@ -13,20 +17,61 @@ winOrigin = (-winSize[0] * 0.5, -winSize[1] * 0.5)
 
 n = 10
 scale = 300
+w = 1000.0
 vertices = None
 triangles = None
+halfedges = None
+pins = None
+pinPoses = None
+A1top = None
+A1bottom = None
+A2top = None
+A2bottom = None
+G = None
+v2 = None
 
 
 def init():
-    global vertices, triangles 
-
     glClearColor(1.0, 1.0, 1.0, 1.0)
     glEnable(GL_DEPTH_TEST)
-    
+    igaRegistrate()
+    igaCompile()
+    igaExecute()
+
+def igaRegistrate():    
+    global vertices, triangles, pins, pinPoses, halfedges
+
     vertices, triangles = planemesh.build(n, scale)
     half = scale * 0.5
     vertices -= half
-          
+    halfedges = halfedge.build(triangles)
+    pins = np.asarray([0, n])
+    pinPoses = np.asarray( (vertices[0,:], vertices[n, :]) )
+
+def igaCompile():
+    global A1top, A2top, G , edges
+
+    edges, heIndices = halfedge.toEdge(halfedges)
+    A1top, G = igarashi.buildA1top(vertices, halfedges, edges, heIndices)
+    A2top = igarashi.buildA2top(edges, vertices.shape[0])
+
+def igaExecute():
+    global v2
+    
+    if pins.size > 0:
+        A1bottom = igarashi.buildA1bottom(vertices, pins, w)
+        A2bottom = igarashi.buildA2bottom(pins, w, vertices.shape[0])
+
+    b1 = igarashi.buildB1(vertices, edges, pins, pinPoses, w)
+    A1 = sp.vstack((A1top, A1bottom)) if pins.size > 0 else A1top
+    tA1 = A1.transpose()
+    v1 = spla.spsolve(tA1 * A1, tA1 * b1)
+    b2 = igarashi.buildB2(vertices, edges, pinPoses, w, G, v1)
+    A2 = sp.vstack((A2top, A2bottom)) if pins.size > 0 else A2top
+    tA2 = A2.transpose()
+    v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
+    v2y = spla.spsolve(tA2 * A2, tA2 * b2[:, 1])
+    v2 = np.vstack((v2x, v2y)).T
     
 def display():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -40,9 +85,9 @@ def display():
     glBegin(GL_TRIANGLES)
     for row in xrange(0, triangles.shape[0]):
         tri = triangles[row, :]
-        glVertex(*vertices[tri[0], :])
-        glVertex(*vertices[tri[1], :])
-        glVertex(*vertices[tri[2], :])
+        glVertex(*v2[tri[0], :])
+        glVertex(*v2[tri[1], :])
+        glVertex(*v2[tri[2], :])
     glEnd()
     
     glPopAttrib()
@@ -68,7 +113,7 @@ def mouse(button, state, x, y):
     
 def motion(x, y):
     x, y = mouse2camera(x, y)
-    print "motion (%.1f, %.1f)" % (x, y)
+    #print "motion (%.1f, %.1f)" % (x, y)
     
 def mouse2camera(x, y):
     y = winSize[1] - y
