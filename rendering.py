@@ -18,56 +18,40 @@ winOrigin = (-winSize[0] * 0.5, -winSize[1] * 0.5)
 n = 10
 scale = 300
 w = 1000.0
-vertices = None
-triangles = None
-halfedges = None
-pins = None
-pinPoses = None
-A1top = None
-A1bottom = None
-A2top = None
-A2bottom = None
-G = None
-v2 = None
 
 
 def init():
     glClearColor(1.0, 1.0, 1.0, 1.0)
     glEnable(GL_DEPTH_TEST)
-    igaRegistrate()
-    igaCompile()
-    igaExecute()
+    registerIgarashi()
+    compileIgarashi()
+    executeIgarashi()
 
-def igaRegistrate():    
-    global vertices, triangles, pins, pinPoses, halfedges
-
-    vertices, triangles = planemesh.build(n, scale)
-    half = scale * 0.5
-    vertices -= half
+def registerIgarashi():
+    global xy, triangles, pins, pinPoses, nVertices, edges
+    global A1top, A2top, G
+    xy, triangles = planemesh.build(n, scale)
     halfedges = halfedge.build(triangles)
     pins = np.asarray([0, n])
-    pinPoses = np.asarray( (vertices[0,:], vertices[n, :]) )
-
-def igaCompile():
-    global A1top, A2top, G , edges
-
+    pinPoses = np.asarray( ((0, 0), (scale, 0)) )
     edges, heIndices = halfedge.toEdge(halfedges)
-    A1top, G = igarashi.buildA1top(vertices, halfedges, edges, heIndices)
-    A2top = igarashi.buildA2top(edges, vertices.shape[0])
+    A1top, G = igarashi.buildA1top(xy, halfedges, edges, heIndices)
+    nVertices = xy.shape[0]
+    A2top = igarashi.buildA2top(edges, nVertices)
 
-def igaExecute():
+def compileIgarashi():
+    global A1bottom, A2bottom
+    A1bottom = igarashi.buildA1bottom(xy, pins, w)
+    A2bottom = igarashi.buildA2bottom(pins, w, nVertices)
+
+def executeIgarashi():
     global v2
-    
-    if pins.size > 0:
-        A1bottom = igarashi.buildA1bottom(vertices, pins, w)
-        A2bottom = igarashi.buildA2bottom(pins, w, vertices.shape[0])
-
-    b1 = igarashi.buildB1(vertices, edges, pins, pinPoses, w)
-    A1 = sp.vstack((A1top, A1bottom)) if pins.size > 0 else A1top
+    b1 = igarashi.buildB1(xy, edges, pins, pinPoses, w)
+    A1 = sp.vstack((A1top, A1bottom))
     tA1 = A1.transpose()
     v1 = spla.spsolve(tA1 * A1, tA1 * b1)
-    b2 = igarashi.buildB2(vertices, edges, pinPoses, w, G, v1)
-    A2 = sp.vstack((A2top, A2bottom)) if pins.size > 0 else A2top
+    b2 = igarashi.buildB2(xy, edges, pinPoses, w, G, v1)
+    A2 = sp.vstack((A2top, A2bottom))
     tA2 = A2.transpose()
     v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
     v2y = spla.spsolve(tA2 * A2, tA2 * b2[:, 1])
@@ -80,7 +64,7 @@ def display():
     glLoadIdentity()
     glPushAttrib(GL_CURRENT_BIT)
     
-    glColor3f(1, 0, 0)
+    glColor3f(0.5, 0.5, 0.5)
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
     glBegin(GL_TRIANGLES)
     for row in xrange(0, triangles.shape[0]):
@@ -88,6 +72,13 @@ def display():
         glVertex(*v2[tri[0], :])
         glVertex(*v2[tri[1], :])
         glVertex(*v2[tri[2], :])
+    glEnd()
+    glColor3f(1, 0, 0)
+    glPointSize(5.0)
+    glBegin(GL_POINTS)
+    for row in xrange(0, pinPoses.shape[0]):
+        pos = pinPoses[row, :]
+        glVertex(*pos)
     glEnd()
     
     glPopAttrib()
@@ -108,8 +99,13 @@ def reshape(width, height):
 def keyboard(key, x, y):
     pass
 def mouse(button, state, x, y):
+    global pinPoses
     x, y = mouse2camera(x, y)
     print "mouse button=%s state=%s (%.1f,%.1f)" % (button, state, x, y)
+    if state == GLUT_DOWN:
+        pinPoses[1, :] = np.asarray((x, y))
+        executeIgarashi()
+
     
 def motion(x, y):
     x, y = mouse2camera(x, y)

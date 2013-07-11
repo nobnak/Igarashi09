@@ -138,7 +138,7 @@ def test2():
     #pins = np.asarray([0, n, (n+1)*n, (n+1)**2-1])
     #pinPoses = np.asarray( ((0, 0), (10, 0), (0, 10), (10, 8)) )
     pins = np.asarray([0, n])
-    pinPoses = np.asarray( ((0, 0), (-10, 0)) )
+    pinPoses = np.asarray( ((0, 0), (10, 0)) )
     w = 1000.0
     
     edges, heIndices = halfedge.toEdge(halfedges)
