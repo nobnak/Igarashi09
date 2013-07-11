@@ -1,5 +1,6 @@
 import sys
 import optparse
+import time
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
@@ -16,8 +17,10 @@ winTitle = 'Test OpenGL'
 winOrigin = (-winSize[0] * 0.5, -winSize[1] * 0.5)
 
 n = 10
-scale = 300
+scale = 200
 w = 1000.0
+pins = np.asarray([0, (n+1)**2-1])
+pinPoses = np.asarray(( (0, 0), (scale,  scale) ))
 
 
 def init():
@@ -32,29 +35,37 @@ def registerIgarashi():
     global A1top, A2top, G
     xy, triangles = planemesh.build(n, scale)
     halfedges = halfedge.build(triangles)
-    pins = np.asarray([0, n])
-    pinPoses = np.asarray( ((0, 0), (scale, 0)) )
     edges, heIndices = halfedge.toEdge(halfedges)
     A1top, G = igarashi.buildA1top(xy, halfedges, edges, heIndices)
     nVertices = xy.shape[0]
     A2top = igarashi.buildA2top(edges, nVertices)
 
 def compileIgarashi():
-    global A1bottom, A2bottom
+    global A1bottom, A2bottom, tA1, tA2, sqA1, sqA2, fctA1, fctA2
     A1bottom = igarashi.buildA1bottom(xy, pins, w)
     A2bottom = igarashi.buildA2bottom(pins, w, nVertices)
+    A1 = sp.vstack((A1top, A1bottom))
+    tA1 = A1.transpose()
+    A2 = sp.vstack((A2top, A2bottom))
+    tA2 = A2.transpose()
+    sqA1 = tA1 * A1
+    sqA2 = tA2 * A2
+    fctA1 = spla.factorized(sqA1)
+    fctA2 = spla.factorized(sqA2)
 
 def executeIgarashi():
     global v2
     b1 = igarashi.buildB1(xy, edges, pins, pinPoses, w)
-    A1 = sp.vstack((A1top, A1bottom))
-    tA1 = A1.transpose()
-    v1 = spla.spsolve(tA1 * A1, tA1 * b1)
+    b1array = (tA1 * b1).toarray().flatten()
+    #v1 = spla.spsolve(sqA1, tA1 * b1)
+    v1 = fctA1(b1array)
     b2 = igarashi.buildB2(xy, edges, pinPoses, w, G, v1)
-    A2 = sp.vstack((A2top, A2bottom))
-    tA2 = A2.transpose()
-    v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
-    v2y = spla.spsolve(tA2 * A2, tA2 * b2[:, 1])
+    b2array0 = (tA2 * b2[:, 0])
+    b2array1 = (tA2 * b2[:, 1])
+    #v2x = spla.spsolve(sqA2, tA2 * b2[:, 0])
+    #v2y = spla.spsolve(sqA2, tA2 * b2[:, 1])
+    v2x = fctA2(b2array0)
+    v2y = fctA2(b2array1)
     v2 = np.vstack((v2x, v2y)).T
     
 def display():
@@ -104,7 +115,11 @@ def mouse(button, state, x, y):
     print "mouse button=%s state=%s (%.1f,%.1f)" % (button, state, x, y)
     if state == GLUT_DOWN:
         pinPoses[1, :] = np.asarray((x, y))
+        #registerIgarashi()
+        #compileIgarashi()
+        startTime = time.time()
         executeIgarashi()
+        print "Elapsed (executeIgarashi()) : %.2f" % ((time.time() - startTime),)
 
     
 def motion(x, y):
