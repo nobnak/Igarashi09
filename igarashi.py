@@ -9,7 +9,7 @@ import halfedge
 
 
 
-def buildA1top(xy, halfedges, edges, heIndices):
+def buildA1top(xy, edgeVectors, halfedges, edges, heIndices):
     Arows = []
     Acols = []
     Adata = []
@@ -34,8 +34,8 @@ def buildA1top(xy, halfedges, edges, heIndices):
             vPos = xy[v, :]
             g.extend(( (vPos[0], vPos[1]), (vPos[1], -vPos[0]) ))
         g = np.asarray(g)
-        e = xy[v1, :] - xy[v0, :]
-        e = np.asarray(( e, (e[1], -e[0]) ))
+        e = edgeVectors[row, :]
+        e = np.asarray(( (e[0], e[1]), (e[1], -e[0]) ))
         g = np.dot( la.inv(np.dot(g.T, g)), g.T )
         h = - np.dot(e, g)
         rows = []
@@ -60,7 +60,7 @@ def buildA1top(xy, halfedges, edges, heIndices):
 
 
 
-def buildA1bottom(xy, pins, w):
+def buildA1bottom(pins, w, nVertices):
     Arows = []
     Acols = []
     Adata = []
@@ -68,16 +68,16 @@ def buildA1bottom(xy, pins, w):
         pin = pins[row]
         Arows.append(2 * row); Acols.append(2 * pin); Adata.append(w)
         Arows.append(2 * row + 1); Acols.append(2 * pin + 1); Adata.append(w)
-    spA1bottom = sp.csr_matrix((Adata, (Arows, Acols)), shape=(pins.size * 2, xy.size))    
+    spA1bottom = sp.csr_matrix((Adata, (Arows, Acols)), shape=(pins.size * 2, nVertices * 2))    
     return spA1bottom
 
 
 
-def buildB1(xy, edges, pins, pinPositions, w):
-    brows = range(edges.size, edges.size + pinPositions.size)
+def buildB1(pins, pinPositions, w, nEdges):
+    brows = range(nEdges * 2, nEdges * 2 + pinPositions.size)
     bcols = [0 for i in xrange(0, len(brows))]
     bdata = (w * pinPositions).flatten()
-    bshape = (edges.size + pinPositions.size, 1)
+    bshape = (nEdges * 2 + pinPositions.size, 1)
     b1 = sp.csr_matrix((bdata, (brows, bcols)), shape=bshape).tolil()
     return b1
 
@@ -110,14 +110,13 @@ def buildA2bottom(pins, w, nVertices):
 
 
 
-def buildB2(xy, edges, pinPoses, w, G, v1):
+def buildB2(edgeVectors, edges, pinPoses, w, G, v1):
     T1 = G * v1
     b2 = []
     for row in xrange(0, edges.shape[0]):
-        v0, v1 = edges[row, :]
-        e0 = xy[v1, :] - xy[v0, :]
+        e0 = edgeVectors[row, :]
         c = T1[2 * row]; s = T1[2 * row + 1]
-        rScale = 1.0 / (c * c + s * s)
+        rScale = 1.0 / np.sqrt(c * c + s * s)
         c *= rScale; s *= rScale
         T2 = np.asarray(( (c, s), (-s, c) ))
         e1 = np.dot(T2, e0)
@@ -138,21 +137,23 @@ def test2():
     #pins = np.asarray([0, n, (n+1)*n, (n+1)**2-1])
     #pinPoses = np.asarray( ((0, 0), (10, 0), (0, 10), (10, 8)) )
     pins = np.asarray([0, n])
-    pinPoses = np.asarray( ((0, 0), (0, 7)) )
+    pinPoses = np.asarray( ((-0.5*scale, 0), (0.5*scale, 0)) )
     w = 1000.0
-    
+    nVertices = xy.shape[0]
     edges, heIndices = halfedge.toEdge(halfedges)
-    A1top, G = buildA1top(xy, halfedges, edges, heIndices)
-    A1bottom = buildA1bottom(xy, pins, w)
-    b1 = buildB1(xy, edges, pins, pinPoses, w)
+    edgeVectors = xy[edges[:, 1], :] - xy[edges[:, 0], :]
+    nEdges = edges.shape[0]
+    
+    A1top, G = buildA1top(xy, edgeVectors, halfedges, edges, heIndices)
+    A1bottom = buildA1bottom(pins, w, nVertices)
+    b1 = buildB1(pins, pinPoses, w, nEdges)
     A1 = sp.vstack((A1top, A1bottom))
     tA1 = A1.transpose()
     v1 = spla.spsolve(tA1 * A1, tA1 * b1)
     
-    nVertices = xy.shape[0]
     A2top = buildA2top(edges, nVertices)
     A2bottom = buildA2bottom(pins, w, nVertices)
-    b2 = buildB2(xy, edges, pinPoses, w, G, v1)
+    b2 = buildB2(edgeVectors, edges, pinPoses, w, G, v1)
     A2 = sp.vstack((A2top, A2bottom))
     tA2 = A2.transpose()
     v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
