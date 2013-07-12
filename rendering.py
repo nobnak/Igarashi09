@@ -19,8 +19,8 @@ winOrigin = (-winSize[0] * 0.5, -winSize[1] * 0.5)
 n = 10
 scale = 200
 w = 1000.0
-pins = np.asarray([0, (n+1)**2-1])
-pinPoses = np.asarray(( (-0.5*scale, -0.5*scale), (0.5*scale,  0.5*scale) ))
+pins = np.asarray([0, ((n+1)**2-1)/2])
+pinPoses = np.asarray(( (-0.5*scale, -0.5*scale), (0, 0) ))
 mouseIsDown = False
 
 
@@ -54,22 +54,14 @@ def compileIgarashi():
     tA2 = A2.transpose()
     sqA1 = tA1 * A1
     sqA2 = tA2 * A2
-    fctA1 = spla.factorized(sqA1)
-    fctA2 = spla.factorized(sqA2)
 
 def executeIgarashi():
     global v2
     b1 = igarashi.buildB1(pins, pinPoses, w, nEdges)
-    b1array = (tA1 * b1).toarray().flatten()
-    #v1 = spla.spsolve(sqA1, tA1 * b1)
-    v1 = fctA1(b1array)
+    v1 = spla.spsolve(sqA1, tA1 * b1)
     b2 = igarashi.buildB2(edgeVectors, edges, pinPoses, w, G, v1)
-    b2array0 = (tA2 * b2[:, 0])
-    b2array1 = (tA2 * b2[:, 1])
-    #v2x = spla.spsolve(sqA2, tA2 * b2[:, 0])
-    #v2y = spla.spsolve(sqA2, tA2 * b2[:, 1])
-    v2x = fctA2(b2array0)
-    v2y = fctA2(b2array1)
+    v2x = spla.spsolve(sqA2, tA2 * b2[:, 0])
+    v2y = spla.spsolve(sqA2, tA2 * b2[:, 1])
     v2 = np.vstack((v2x, v2y)).T
     
 def display():
