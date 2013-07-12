@@ -20,7 +20,8 @@ n = 10
 scale = 200
 w = 1000.0
 pins = np.asarray([0, (n+1)**2-1])
-pinPoses = np.asarray(( (0, 0), (scale,  scale) ))
+pinPoses = np.asarray(( (-0.5*scale, -0.5*scale), (0.5*scale,  0.5*scale) ))
+mouseIsDown = False
 
 
 def init():
@@ -31,18 +32,21 @@ def init():
     executeIgarashi()
 
 def registerIgarashi():
-    global xy, triangles, pins, pinPoses, nVertices, edges
+    global xy, triangles, pins, pinPoses, nVertices, nEdges, edges, edgeVectors
     global A1top, A2top, G
     xy, triangles = planemesh.build(n, scale)
+    xy -= 0.5*scale
     halfedges = halfedge.build(triangles)
     edges, heIndices = halfedge.toEdge(halfedges)
-    A1top, G = igarashi.buildA1top(xy, halfedges, edges, heIndices)
+    edgeVectors = xy[edges[:, 1], :] - xy[edges[:, 0], :]
     nVertices = xy.shape[0]
+    nEdges = edges.shape[0]
+    A1top, G = igarashi.buildA1top(xy, edgeVectors, halfedges, edges, heIndices)
     A2top = igarashi.buildA2top(edges, nVertices)
 
 def compileIgarashi():
     global A1bottom, A2bottom, tA1, tA2, sqA1, sqA2, fctA1, fctA2
-    A1bottom = igarashi.buildA1bottom(xy, pins, w)
+    A1bottom = igarashi.buildA1bottom(pins, w, nVertices)
     A2bottom = igarashi.buildA2bottom(pins, w, nVertices)
     A1 = sp.vstack((A1top, A1bottom))
     tA1 = A1.transpose()
@@ -55,11 +59,11 @@ def compileIgarashi():
 
 def executeIgarashi():
     global v2
-    b1 = igarashi.buildB1(xy, edges, pins, pinPoses, w)
+    b1 = igarashi.buildB1(pins, pinPoses, w, nEdges)
     b1array = (tA1 * b1).toarray().flatten()
     #v1 = spla.spsolve(sqA1, tA1 * b1)
     v1 = fctA1(b1array)
-    b2 = igarashi.buildB2(xy, edges, pinPoses, w, G, v1)
+    b2 = igarashi.buildB2(edgeVectors, edges, pinPoses, w, G, v1)
     b2array0 = (tA2 * b2[:, 0])
     b2array1 = (tA2 * b2[:, 1])
     #v2x = spla.spsolve(sqA2, tA2 * b2[:, 0])
@@ -110,21 +114,22 @@ def reshape(width, height):
 def keyboard(key, x, y):
     pass
 def mouse(button, state, x, y):
-    global pinPoses
+    global pinPoses, mouseIsDown
     x, y = mouse2camera(x, y)
     print "mouse button=%s state=%s (%.1f,%.1f)" % (button, state, x, y)
     if state == GLUT_DOWN:
-        pinPoses[1, :] = np.asarray((x, y))
-        #registerIgarashi()
-        #compileIgarashi()
-        startTime = time.time()
-        executeIgarashi()
-        print "Elapsed (executeIgarashi()) : %.2f" % ((time.time() - startTime),)
+        mouseIsDown = True
+    else:
+        mouseIsDown = False
 
     
 def motion(x, y):
     x, y = mouse2camera(x, y)
-    #print "motion (%.1f, %.1f)" % (x, y)
+    if mouseIsDown:
+        pinPoses[0, :] = np.asarray((x, y))
+        executeIgarashi()
+        glutPostRedisplay()
+    
     
 def mouse2camera(x, y):
     y = winSize[1] - y
