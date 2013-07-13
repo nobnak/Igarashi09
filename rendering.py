@@ -19,9 +19,9 @@ winOrigin = (-winSize[0] * 0.5, -winSize[1] * 0.5)
 n = 10
 scale = 200
 w = 1000.0
-pins = np.asarray([0, ((n+1)**2-1)/2])
-pinPoses = np.asarray(( (-0.5*scale, -0.5*scale), (0, 0) ))
+pins = np.asarray(( n+2, ((n+1)**2-1)/2, (n+1)*n-2 ))
 mouseIsDown = False
+movePin = -1
 
 
 def init():
@@ -36,6 +36,7 @@ def registerIgarashi():
     global A1top, A2top, G
     xy, triangles = planemesh.build(n, scale)
     xy -= 0.5*scale
+    pinPoses = xy[pins, :]
     halfedges = halfedge.build(triangles)
     edges, heIndices = halfedge.toEdge(halfedges)
     edgeVectors = xy[edges[:, 1], :] - xy[edges[:, 0], :]
@@ -106,11 +107,12 @@ def reshape(width, height):
 def keyboard(key, x, y):
     pass
 def mouse(button, state, x, y):
-    global pinPoses, mouseIsDown
+    global pinPoses, mouseIsDown, movePin
     x, y = mouse2camera(x, y)
     print "mouse button=%s state=%s (%.1f,%.1f)" % (button, state, x, y)
     if state == GLUT_DOWN:
         mouseIsDown = True
+        movePin = (movePin + 1) % pins.size
     else:
         mouseIsDown = False
 
@@ -118,7 +120,7 @@ def mouse(button, state, x, y):
 def motion(x, y):
     x, y = mouse2camera(x, y)
     if mouseIsDown:
-        pinPoses[0, :] = np.asarray((x, y))
+        pinPoses[movePin, :] = np.asarray((x, y))
         executeIgarashi()
         glutPostRedisplay()
     
