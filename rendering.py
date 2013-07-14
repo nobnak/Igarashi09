@@ -34,17 +34,17 @@ def init():
     executeIgarashi()
 
 def registerIgarashi():
-    global xy, triangles, pins, pinPoses, nVertices, nEdges, edges, edgeVectors
+    global xy, triangles, pins, pinPoses, nVertices, nEdges, edges, heVectors, heIndices
     global A1top, A2top, G
     xy, triangles = planemesh.build(n, scale)
     xy -= 0.5*scale
     pinPoses = xy[pins, :]
     halfedges = halfedge.build(triangles)
+    heVectors = np.asarray([xy[he.ivertex, :] - xy[he.prev().ivertex, :] for he in halfedges])
     edges, heIndices = halfedge.toEdge(halfedges)
-    edgeVectors = xy[edges[:, 1], :] - xy[edges[:, 0], :]
     nVertices = xy.shape[0]
     nEdges = edges.shape[0]
-    A1top, G = igarashi.buildA1top(xy, edgeVectors, halfedges, edges, heIndices)
+    A1top, G = igarashi.buildA1top(heVectors, halfedges, edges, heIndices, nVertices)
     A2top = igarashi.buildA2top(edges, nVertices)
 
 def compileIgarashi():
@@ -62,7 +62,7 @@ def executeIgarashi():
     global v2
     b1 = igarashi.buildB1(pins, pinPoses, w, nEdges)
     v1 = spla.spsolve(sqA1, tA1 * b1)
-    b2 = igarashi.buildB2(edgeVectors, edges, pinPoses, w, G, v1)
+    b2 = igarashi.buildB2(heVectors, heIndices, edges, pinPoses, w, G, v1)
     v2x = spla.spsolve(sqA2, tA2 * b2[:, 0])
     v2y = spla.spsolve(sqA2, tA2 * b2[:, 1])
     v2 = np.vstack((v2x, v2y)).T
