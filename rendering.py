@@ -7,6 +7,7 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
 import numpy as np
+import numpy.linalg as la
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
@@ -109,13 +110,13 @@ def reshape(width, height):
 def keyboard(key, x, y):
     pass
 def mouse(button, state, x, y):
-    global pinPoses, mouseIsDown, movePin
+    global mouseIsDown, movePin
     x, y = mouse2camera(x, y)
     print "mouse button=%s state=%s (%.1f,%.1f)" % (button, state, x, y)
     if state == GLUT_DOWN:
         if button == GLUT_LEFT_BUTTON:
             mouseIsDown = True
-            movePin = (movePin + 1) % pins.size
+            movePin = getNearestPin(x, y)
         elif button == GLUT_RIGHT_BUTTON:
             profile.disable()
             profile.dump_stats("profile.dmp")
@@ -130,7 +131,16 @@ def motion(x, y):
         pinPoses[movePin, :] = np.asarray((x, y))
         executeIgarashi()
         glutPostRedisplay()
-    
+
+def getNearestPin(x, y):
+    minI = -1
+    minDist = 10000 * scale
+    for row in xrange(0, pinPoses.shape[0]):
+        dist = la.norm(pinPoses[row, :] - np.asarray((x, y)))
+        if dist < minDist:
+            minI = row
+            minDist = dist
+    return minI
     
 def mouse2camera(x, y):
     y = winSize[1] - y
