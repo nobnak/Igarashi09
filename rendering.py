@@ -1,6 +1,8 @@
 import sys
 import optparse
 import time
+import cProfile
+import gc
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
@@ -111,8 +113,13 @@ def mouse(button, state, x, y):
     x, y = mouse2camera(x, y)
     print "mouse button=%s state=%s (%.1f,%.1f)" % (button, state, x, y)
     if state == GLUT_DOWN:
-        mouseIsDown = True
-        movePin = (movePin + 1) % pins.size
+        if button == GLUT_LEFT_BUTTON:
+            mouseIsDown = True
+            movePin = (movePin + 1) % pins.size
+        elif button == GLUT_RIGHT_BUTTON:
+            profile.disable()
+            profile.dump_stats("profile.dmp")
+            glutLeaveMainLoop()
     else:
         mouseIsDown = False
 
@@ -149,4 +156,6 @@ def main(options, args):
 if __name__ == '__main__':
     parser = optparse.OptionParser(__doc__)
     options, args = parser.parse_args()
+    profile = cProfile.Profile()
+    profile.enable()
     main(options, args)
