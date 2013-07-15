@@ -1,8 +1,7 @@
 import sys
 import optparse
-import time
-import cProfile
 import gc
+import time
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from OpenGL.GLUT import *
@@ -25,6 +24,7 @@ w = 1000.0
 pins = np.asarray(( n+2, ((n+1)**2-1)/2, (n+1)*n-2 ))
 mouseIsDown = False
 movePin = -1
+lastFrameTime = time.time()
 
 
 def init():
@@ -118,16 +118,17 @@ def mouse(button, state, x, y):
             mouseIsDown = True
             movePin = getNearestPin(x, y)
         elif button == GLUT_RIGHT_BUTTON:
-            profile.disable()
-            profile.dump_stats("profile.dmp")
             glutLeaveMainLoop()
     else:
         mouseIsDown = False
 
     
 def motion(x, y):
+    global lastFrameTime
     x, y = mouse2camera(x, y)
-    if mouseIsDown:
+    dt = time.time() - lastFrameTime
+    if mouseIsDown and dt > 0.1:
+        lastFrameTime = time.time()
         pinPoses[movePin, :] = np.asarray((x, y))
         executeIgarashi()
         glutPostRedisplay()
@@ -166,6 +167,5 @@ def main(options, args):
 if __name__ == '__main__':
     parser = optparse.OptionParser(__doc__)
     options, args = parser.parse_args()
-    profile = cProfile.Profile()
-    profile.enable()
     main(options, args)
+    print "Exit"
