@@ -12,6 +12,12 @@ class HalfEdge:
     def __repr__(self):
         return 'HalfEdge<index=%d inext=%d ivertex=%d ipair=%d' % \
             (self.iself, self.inext, self.ivertex, self.ipair)
+    def prev(self):
+        prev = self.collection[self.inext]
+        while prev.inext != self.iself:
+            prev = self.collection[prev.inext]
+        return prev
+        
 
 def build(triangles):
     collection = []
@@ -26,9 +32,7 @@ def build(triangles):
     for me in collection:
         if me.ipair != -1:
             continue
-        myPrev = collection[me.inext]
-        while myPrev.inext != me.iself:
-            myPrev = collection[myPrev.inext]
+        myPrev = me.prev()
         for pairPrev in collection:
             if pairPrev.ivertex != me.ivertex:
                 continue
@@ -46,9 +50,7 @@ def toEdge(halfedges):
     for i in xrange(0, len(halfedges)):
         he = halfedges[i]
         if he.ipair == -1:
-            prev = halfedges[he.inext]
-            while prev.inext != he.iself:
-                prev = halfedges[prev.inext]
+            prev = he.prev()
             edges.append((prev.ivertex, he.ivertex))
             indices.append(i)
         elif he.iself < he.ipair:

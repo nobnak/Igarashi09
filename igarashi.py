@@ -8,8 +8,19 @@ import planemesh
 import halfedge
 
 
+threeVertices2twoEdges = np.asarray(( (-1.,  0., 1., 0., 0., 0.),
+                                      ( 0., -1., 0., 1., 0., 0.),
+                                      (-1.,  0., 0., 0., 1., 0.),
+                                      ( 0., -1., 0., 0., 0., 1.) ))
+fourVertices2threeEdges = np.asarray(( (-1.,  0., 1., 0., 0., 0., 0., 0.),
+                                       ( 0., -1., 0., 1., 0., 0., 0., 0.),
+                                       (-1.,  0., 0., 0., 1., 0., 0., 0.),
+                                       ( 0., -1., 0., 0., 0., 1., 0., 0.),
+                                       (-1.,  0., 0., 0., 0., 0., 1., 0.),
+                                       ( 0., -1., 0., 0., 0., 0., 0., 1.) ))
 
-def buildA1top(xy, edgeVectors, halfedges, edges, heIndices):
+
+def buildA1top(heVectors, halfedges, edges, heIndices, nVertices):
     Arows = []
     Acols = []
     Adata = []
@@ -25,18 +36,23 @@ def buildA1top(xy, edgeVectors, halfedges, edges, heIndices):
 
         vertices = [v0, v1]
         he = halfedges[heIndices[row]]
+        edgeVectors = [heVectors[he.iself], ]
         vertices.append(halfedges[he.inext].ivertex)
+        edgeVectors.append(-heVectors[he.prev().iself])
+        verts2edges = threeVertices2twoEdges
         if he.ipair != -1:
             pair = halfedges[he.ipair]
             vertices.append(halfedges[pair.inext].ivertex)
+            edgeVectors.append(heVectors[pair.inext])
+            verts2edges = fourVertices2threeEdges
         g = []
-        for v in vertices:
-            vPos = xy[v, :]
-            g.extend(( (vPos[0], vPos[1]), (vPos[1], -vPos[0]) ))
+        for v in edgeVectors:
+            g.extend(( (v[0], v[1]), (v[1], -v[0]) ))
         g = np.asarray(g)
-        e = edgeVectors[row, :]
+        e = heVectors[heIndices[row], :]
         e = np.asarray(( (e[0], e[1]), (e[1], -e[0]) ))
         g = np.dot( la.inv(np.dot(g.T, g)), g.T )
+        g = np.dot( g, verts2edges )
         h = - np.dot(e, g)
         rows = []
         cols = []
@@ -54,8 +70,8 @@ def buildA1top(xy, edgeVectors, halfedges, edges, heIndices):
         Grows.extend(rows)
         Gcols.extend(cols)
         Gdata.extend(g.flatten())
-    spA1top = sp.csr_matrix((Adata, (Arows, Acols)), shape=(edges.size, xy.size))
-    spG = sp.csr_matrix((Gdata, (Grows, Gcols)), shape=(edges.size, xy.size))
+    spA1top = sp.csr_matrix((Adata, (Arows, Acols)), shape=(edges.size, nVertices * 2))
+    spG = sp.csr_matrix((Gdata, (Grows, Gcols)), shape=(edges.size, nVertices * 2))
     return spA1top, spG
 
 
@@ -110,11 +126,11 @@ def buildA2bottom(pins, w, nVertices):
 
 
 
-def buildB2(edgeVectors, edges, pinPoses, w, G, v1):
+def buildB2(heVectors, heIndices, edges, pinPoses, w, G, v1):
     T1 = G * v1
     b2 = []
     for row in xrange(0, edges.shape[0]):
-        e0 = edgeVectors[row, :]
+        e0 = heVectors[heIndices[row], :]
         c = T1[2 * row]; s = T1[2 * row + 1]
         rScale = 1.0 / np.sqrt(c * c + s * s)
         c *= rScale; s *= rScale
@@ -134,17 +150,16 @@ def test2():
     scale = 10
     xy, triangles = planemesh.build(n, scale)
     halfedges = halfedge.build(triangles)
-    #pins = np.asarray([0, n, (n+1)*n, (n+1)**2-1])
-    #pinPoses = np.asarray( ((0, 0), (10, 0), (0, 10), (10, 8)) )
+    heVectors = np.asarray([xy[he.ivertex, :] - xy[he.prev().ivertex, :] for he in halfedges])
     pins = np.asarray([0, n])
-    pinPoses = np.asarray( ((-0.5*scale, 0), (0.5*scale, 0)) )
+    #pinPoses = xy[pins, :]
+    pinPoses = np.asarray(( (-scale, 0), (0, 0) ))
     w = 1000.0
     nVertices = xy.shape[0]
     edges, heIndices = halfedge.toEdge(halfedges)
-    edgeVectors = xy[edges[:, 1], :] - xy[edges[:, 0], :]
     nEdges = edges.shape[0]
     
-    A1top, G = buildA1top(xy, edgeVectors, halfedges, edges, heIndices)
+    A1top, G = buildA1top(heVectors, halfedges, edges, heIndices, nVertices)
     A1bottom = buildA1bottom(pins, w, nVertices)
     b1 = buildB1(pins, pinPoses, w, nEdges)
     A1 = sp.vstack((A1top, A1bottom))
@@ -153,7 +168,7 @@ def test2():
     
     A2top = buildA2top(edges, nVertices)
     A2bottom = buildA2bottom(pins, w, nVertices)
-    b2 = buildB2(edgeVectors, edges, pinPoses, w, G, v1)
+    b2 = buildB2(heVectors, heIndices, edges, pinPoses, w, G, v1)
     A2 = sp.vstack((A2top, A2bottom))
     tA2 = A2.transpose()
     v2x = spla.spsolve(tA2 * A2, tA2 * b2[:, 0])
@@ -161,18 +176,19 @@ def test2():
     v2 = np.vstack((v2x, v2y)).T
     
     if n == 1:
-        answerG = np.asarray(((0, 0,  0.025,       0,     0,  0.025,  0.025,   0.025),
-                              (0, 0,      0,  -0.025, 0.025,      0,  0.025,  -0.025),
-                              (0, 0, 0.0333,       0,     0,      0, 0.0333,  0.0333),
-                              (0, 0,      0, -0.0333,     0,      0, 0.0333, -0.0333),
-                              (0, 0, 0.0333,       0,     0,      0, 0.0333,  0.0333),
-                              (0, 0,      0, -0.0333,     0,      0, 0.0333, -0.0333),
-                              (0, 0,      0,       0,     0, 0.0333, 0.0333,  0.0333),
-                              (0, 0,      0,       0,0.0333,      0, 0.0333, -0.0333),
-                              (0, 0,      0,       0,     0, 0.0333, 0.0333,  0.0333),
-                              (0, 0,      0,       0,0.0333,      0, 0.0333, -0.0333)
-                             ))
-        print "Error of G : %e" % la.norm(G - answerG, np.Inf)
+        answerA1top = np.asarray(( (     0,      0, -0.25,  0.25, -0.25, -0.25,    0.5,      0),
+                                   (     0,      0, -0.25, -0.25,  0.25, -0.25,      0,    0.5),
+                                   (-0.333,  0.333, 0.666,     0,     0,     0, -0.333, -0.333),
+                                   (-0.333, -0.333,     0, 0.666,     0,     0,  0.333, -0.333),
+                                   (   0.5,      0,  -0.5,  -0.5,     0,     0,      0,    0.5),
+                                   (     0,    0.5,   0.5,  -0.5,     0,     0,   -0.5,      0),
+                                   (-0.333, -0.333,     0,     0, 0.666,     0, -0.333,  0.333),
+                                   ( 0.333, -0.333,     0,     0,     0, 0.666, -0.333, -0.333),
+                                   (     0,    0.5,     0,     0,  -0.5,  -0.5,    0.5,      0),
+                                   (  -0.5,      0,     0,     0,   0.5,  -0.5,      0,    0.5)
+                                  ))
+        print "Error of G : %e" % la.norm(A1top - answerA1top, np.Inf)
+        #print "Full A1top : ", A1top.todense()
 
     v1 = v1.reshape(-1, 2)
     plt.figure()
