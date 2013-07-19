@@ -1,6 +1,6 @@
 Igarashi09
 ==========
-An implementation [Igarashi 2009] in SciPy.
+An implementation of [Igarashi 2009] in SciPy.
 
 
 # References
